@@ -1,0 +1,21 @@
+{
+  "users": [
+    {"id":"buyer_demo","role":"buyer","name":"演示买家","phone":"13800000001"},
+    {"id":"merchant_demo","role":"merchant","name":"星河店长","phone":"13800000002","storeId":"store_xinghe"}
+  ],
+  "stores": [
+    {"id":"store_xinghe","name":"星河电竞陪玩馆","ownerId":"merchant_demo","status":"approved","support":{"enabled":true,"authorizedAgents":["merchant_demo"]}},
+    {"id":"store_night","name":"夜猫电竞俱乐部","ownerId":"merchant_night","status":"approved","support":{"enabled":true,"authorizedAgents":[]}},
+    {"id":"store_valley","name":"峡谷通行证","ownerId":"merchant_valley","status":"approved","support":{"enabled":true,"authorizedAgents":[]}}
+  ],
+  "projects": [
+    {"id":"project_king","storeId":"store_xinghe","name":"王者荣耀 · 赛季冲刺","game":"王者荣耀","price":38,"unit":"小时","active":true},
+    {"id":"project_lol","storeId":"store_xinghe","name":"英雄联盟 · 钻石晋级赛","game":"英雄联盟","price":55,"unit":"局","active":true},
+    {"id":"project_fps","storeId":"store_night","name":"无畏契约 · 枪法陪练","game":"无畏契约","price":42,"unit":"小时","active":true}
+  ],
+  "orders": [],
+  "applications": [],
+  "ads": [
+    {"id":"ad_xinghe","storeId":"store_xinghe","targetType":"project","targetId":"project_king","placement":"home_feature","dailyBudget":500,"status":"active","impressions":18426,"clicks":1284}
+  ]
+}
