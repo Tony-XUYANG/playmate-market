@@ -1,21 +1,133 @@
 {
   "users": [
-    {"id":"buyer_demo","role":"buyer","name":"演示买家","phone":"13800000001"},
-    {"id":"merchant_demo","role":"merchant","name":"星河店长","phone":"13800000002","storeId":"store_xinghe"}
+    {
+      "id": "buyer_demo",
+      "role": "buyer",
+      "name": "演示买家",
+      "phone": "13800000001"
+    },
+    {
+      "id": "merchant_demo",
+      "role": "merchant",
+      "name": "星河店长",
+      "phone": "13800000002",
+      "storeId": "store_xinghe"
+    },
+    {
+      "id": "player_demo",
+      "role": "player",
+      "name": "阿泽",
+      "phone": "13800000003",
+      "playerId": "player_aze"
+    },
+    {
+      "id": "admin_demo",
+      "role": "admin",
+      "name": "平台仲裁员",
+      "phone": "13800000004"
+    }
   ],
   "stores": [
-    {"id":"store_xinghe","name":"星河电竞陪玩馆","ownerId":"merchant_demo","status":"approved","support":{"enabled":true,"authorizedAgents":["merchant_demo"]}},
-    {"id":"store_night","name":"夜猫电竞俱乐部","ownerId":"merchant_night","status":"approved","support":{"enabled":true,"authorizedAgents":[]}},
-    {"id":"store_valley","name":"峡谷通行证","ownerId":"merchant_valley","status":"approved","support":{"enabled":true,"authorizedAgents":[]}}
+    {
+      "id": "store_xinghe",
+      "name": "星河电竞陪玩馆",
+      "ownerId": "merchant_demo",
+      "status": "approved",
+      "support": { "enabled": true, "authorizedAgents": ["merchant_demo"] }
+    },
+    {
+      "id": "store_night",
+      "name": "夜猫电竞俱乐部",
+      "ownerId": "merchant_night",
+      "status": "approved",
+      "support": { "enabled": true, "authorizedAgents": [] }
+    },
+    {
+      "id": "store_valley",
+      "name": "峡谷通行证",
+      "ownerId": "merchant_valley",
+      "status": "approved",
+      "support": { "enabled": true, "authorizedAgents": [] }
+    }
   ],
   "projects": [
-    {"id":"project_king","storeId":"store_xinghe","name":"王者荣耀 · 赛季冲刺","game":"王者荣耀","price":38,"unit":"小时","active":true},
-    {"id":"project_lol","storeId":"store_xinghe","name":"英雄联盟 · 钻石晋级赛","game":"英雄联盟","price":55,"unit":"局","active":true},
-    {"id":"project_fps","storeId":"store_night","name":"无畏契约 · 枪法陪练","game":"无畏契约","price":42,"unit":"小时","active":true}
+    {
+      "id": "project_king",
+      "storeId": "store_xinghe",
+      "name": "王者荣耀 · 赛季冲刺",
+      "game": "王者荣耀",
+      "price": 38,
+      "unit": "小时",
+      "active": true
+    },
+    {
+      "id": "project_lol",
+      "storeId": "store_xinghe",
+      "name": "英雄联盟 · 钻石晋级赛",
+      "game": "英雄联盟",
+      "price": 55,
+      "unit": "局",
+      "active": true
+    },
+    {
+      "id": "project_fps",
+      "storeId": "store_night",
+      "name": "无畏契约 · 枪法陪练",
+      "game": "无畏契约",
+      "price": 42,
+      "unit": "小时",
+      "active": true
+    }
   ],
-  "orders": [],
+  "players": [
+    {
+      "id": "player_aze",
+      "userId": "player_demo",
+      "storeId": "store_xinghe",
+      "name": "阿泽",
+      "game": "王者荣耀",
+      "rank": "百星王者 · 国服打野",
+      "rating": 4.99,
+      "completedOrders": 3286,
+      "price": 48,
+      "status": "online",
+      "verification": "verified",
+      "tags": ["技术流", "温柔指挥", "可教学"],
+      "bio": "6 年 MOBA 经验，擅长打野节奏和阵容分析。",
+      "voiceIntro": "你好，我是阿泽，主玩王者打野，可以陪你上分，也可以复盘思路。"
+    }
+  ],
+  "orders": [
+    {
+      "id": "PM-DEMO-001",
+      "buyerId": "buyer_demo",
+      "playerId": "player_aze",
+      "serviceName": "王者荣耀 · 赛季冲刺陪玩",
+      "storeName": "星河电竞陪玩馆",
+      "amount": 76,
+      "status": "accepted",
+      "createdAt": "2026-08-05T10:00:00.000Z"
+    }
+  ],
+  "conversations": [],
+  "messages": [],
+  "disputes": [],
+  "ledger": [],
+  "verificationRequests": [],
+  "auditLogs": [],
+  "violations": [],
   "applications": [],
   "ads": [
-    {"id":"ad_xinghe","storeId":"store_xinghe","targetType":"project","targetId":"project_king","placement":"home_feature","dailyBudget":500,"status":"active","impressions":18426,"clicks":1284}
+    {
+      "id": "ad_xinghe",
+      "storeId": "store_xinghe",
+      "targetType": "project",
+      "targetId": "project_king",
+      "placement": "home_feature",
+      "dailyBudget": 500,
+      "status": "active",
+      "impressions": 18426,
+      "clicks": 1284
+    }
   ]
 }

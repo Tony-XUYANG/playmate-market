@@ -3,5 +3,6 @@ dist/
 .env
 *.log
 server/data/db.json
+server/data/test-*.json
 server/uploads/*
 !server/uploads/.gitkeep
