@@ -23,6 +23,9 @@ Runtime orders are written to `server/data/db.json`. Uploaded audio is stored un
 - `/api/orders`
 - `/api/orders/:id/pay`, `/api/orders/:id/cancel`, and `/api/orders/:id/disputes`
 - `/api/disputes` and `/api/disputes/:id/resolve`
+- `/api/player/verification` and `/api/admin/player-verifications`
+- `/api/admin/store-applications`, `/api/admin/ads`, and `/api/admin/violations`
+- `/api/admin/ledger` and `/api/admin/audit-logs`
 - `/api/stores/:storeId/support`
 - `/api/support/conversations` and `/api/support/conversations/:id/messages`
 - `/api/player/dashboard` and `/api/player/orders/:id/:action`

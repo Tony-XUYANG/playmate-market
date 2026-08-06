@@ -106,8 +106,7 @@ export const reviewPlayerVerification = (verificationId, decision) =>
     "admin",
   );
 
-export const listAdminAds = () =>
-  authorizedRequest("/admin/ads", {}, "admin");
+export const listAdminAds = () => authorizedRequest("/admin/ads", {}, "admin");
 
 export const reviewAdvertisement = (adId, decision) =>
   authorizedRequest(
@@ -116,8 +115,7 @@ export const reviewAdvertisement = (adId, decision) =>
     "admin",
   );
 
-export const listLedger = () =>
-  authorizedRequest("/admin/ledger", {}, "admin");
+export const listLedger = () => authorizedRequest("/admin/ledger", {}, "admin");
 
 export const listAuditLogs = () =>
   authorizedRequest("/admin/audit-logs", {}, "admin");

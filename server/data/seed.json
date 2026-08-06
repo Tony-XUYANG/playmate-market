@@ -95,6 +95,11 @@
       "tags": ["技术流", "温柔指挥", "可教学"],
       "bio": "6 年 MOBA 经验，擅长打野节奏和阵容分析。",
       "voiceIntro": "你好，我是阿泽，主玩王者打野，可以陪你上分，也可以复盘思路。"
+      ,"schedule": [
+        {"day":"今天","period":"19:00-23:00","available":true},
+        {"day":"明天","period":"14:00-18:00","available":true},
+        {"day":"周六","period":"全天","available":false}
+      ]
     }
   ],
   "orders": [

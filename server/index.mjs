@@ -43,11 +43,16 @@ const loadDatabase = async () => {
         database.users.push(user);
         migrated = true;
       }
-    for (const player of seed.players || [])
-      if (!database.players.some((item) => item.id === player.id)) {
+    for (const player of seed.players || []) {
+      const existing = database.players.find((item) => item.id === player.id);
+      if (!existing) {
         database.players.push(player);
         migrated = true;
+      } else if (!existing.schedule && player.schedule) {
+        existing.schedule = player.schedule;
+        migrated = true;
       }
+    }
     for (const order of seed.orders || [])
       if (!database.orders.some((item) => item.id === order.id)) {
         database.orders.push(order);
@@ -96,6 +101,48 @@ const recordAudit = (
     details,
     createdAt: new Date().toISOString(),
   });
+};
+
+const settleOrder = (database, order, settledAt = new Date().toISOString()) => {
+  if (order.settledAt) return order;
+  const platformFee = Number((order.amount * 0.08).toFixed(2));
+  const playerPayout = order.playerId
+    ? Number((order.amount * 0.7).toFixed(2))
+    : 0;
+  const storePayout = Number(
+    (order.amount - platformFee - playerPayout).toFixed(2),
+  );
+  order.status = "completed";
+  order.settledAt = settledAt;
+  database.ledger.push(
+    {
+      id: randomUUID(),
+      orderId: order.id,
+      storeId: order.storeId,
+      type: "platform_fee",
+      amount: platformFee,
+      createdAt: settledAt,
+    },
+    {
+      id: randomUUID(),
+      orderId: order.id,
+      storeId: order.storeId,
+      type: "store_payout",
+      amount: storePayout,
+      createdAt: settledAt,
+    },
+  );
+  if (playerPayout)
+    database.ledger.push({
+      id: randomUUID(),
+      orderId: order.id,
+      storeId: order.storeId,
+      playerId: order.playerId,
+      type: "player_payout",
+      amount: playerPayout,
+      createdAt: settledAt,
+    });
+  return order;
 };
 
 const encode = (value) =>
@@ -253,7 +300,8 @@ app.post(
           item.id === request.params.applicationId && item.status === "pending",
       );
       if (!application) return null;
-      const decision = request.body.decision === "approve" ? "approved" : "rejected";
+      const decision =
+        request.body.decision === "approve" ? "approved" : "rejected";
       application.status = decision;
       application.reviewNote = String(request.body.note || "").trim();
       application.reviewedAt = new Date().toISOString();
@@ -358,9 +406,11 @@ app.post("/api/orders", async (request, response) => {
   )
     return response.status(400).json({ error: "订单参数不完整" });
   const order = await mutateDatabase((database) => {
+    const store = database.stores.find((value) => value.name === storeName);
     const item = {
       id: `PM${Date.now()}`,
       buyerId,
+      storeId: store?.id,
       serviceName,
       storeName,
       amount: Number(amount),
@@ -386,21 +436,22 @@ app.post(
       if (!item || item.status !== "pending_payment") return null;
       item.status = "paid_escrow";
       item.paidAt = new Date().toISOString();
-    database.ledger.push({
+      database.ledger.push({
         id: randomUUID(),
         orderId: item.id,
+        storeId: item.storeId,
         type: "escrow_charge",
         amount: item.amount,
-      createdAt: item.paidAt,
-    });
-    recordAudit(
-      database,
-      request.identity,
-      "order_paid_to_escrow",
-      "order",
-      item.id,
-      { amount: item.amount },
-    );
+        createdAt: item.paidAt,
+      });
+      recordAudit(
+        database,
+        request.identity,
+        "order_paid_to_escrow",
+        "order",
+        item.id,
+        { amount: item.amount },
+      );
       return item;
     });
     if (!order) return response.status(409).json({ error: "订单当前不可支付" });
@@ -446,6 +497,34 @@ app.post(
 );
 
 app.post(
+  "/api/orders/:orderId/confirm",
+  requireBuyer,
+  async (request, response) => {
+    const order = await mutateDatabase((database) => {
+      const item = database.orders.find(
+        (value) =>
+          value.id === request.params.orderId &&
+          value.buyerId === request.identity.userId,
+      );
+      if (!item || item.status !== "pending_confirmation") return null;
+      settleOrder(database, item);
+      recordAudit(
+        database,
+        request.identity,
+        "order_confirmed_and_settled",
+        "order",
+        item.id,
+        { amount: item.amount },
+      );
+      return item;
+    });
+    if (!order)
+      return response.status(409).json({ error: "订单当前不可确认" });
+    response.json({ order });
+  },
+);
+
+app.post(
   "/api/orders/:orderId/disputes",
   requireBuyer,
   async (request, response) => {
@@ -457,9 +536,14 @@ app.post(
       );
       if (
         !order ||
-        !["paid_escrow", "accepted", "in_progress", "completed"].includes(
-          order.status,
-        )
+        ![
+          "paid_escrow",
+          "assigned",
+          "accepted",
+          "in_progress",
+          "pending_confirmation",
+          "completed",
+        ].includes(order.status)
       )
         return null;
       const item = {
@@ -517,7 +601,8 @@ app.post(
       dispute.resolution = resolution;
       dispute.refundAmount = refundAmount;
       dispute.resolvedAt = new Date().toISOString();
-      order.status = refundAmount > 0 ? "refunded" : "completed";
+      if (refundAmount > 0) order.status = "refunded";
+      else settleOrder(database, order, dispute.resolvedAt);
       if (refundAmount > 0)
         database.ledger.push({
           id: randomUUID(),
@@ -548,13 +633,86 @@ app.patch(
   async (request, response) => {
     const order = await mutateDatabase((database) => {
       const item = database.orders.find(
-        (value) => value.id === request.params.orderId,
+        (value) =>
+          value.id === request.params.orderId &&
+          value.storeId === request.identity.storeId,
       );
       if (!item) return null;
       item.status = request.body.status || item.status;
       return item;
     });
     if (!order) return response.status(404).json({ error: "订单不存在" });
+    response.json({ order });
+  },
+);
+
+app.get("/api/merchant/orders", requireMerchant, async (request, response) => {
+  const database = await loadDatabase();
+  const store = database.stores.find(
+    (item) => item.id === request.identity.storeId,
+  );
+  const orders = database.orders
+    .filter(
+      (item) =>
+        item.storeId === request.identity.storeId ||
+        (!item.storeId && item.storeName === store?.name),
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  response.json({ orders });
+});
+
+app.get("/api/merchant/players", requireMerchant, async (request, response) => {
+  const database = await loadDatabase();
+  response.json({
+    players: database.players.filter(
+      (item) =>
+        item.storeId === request.identity.storeId &&
+        item.verification === "verified",
+    ),
+  });
+});
+
+app.post(
+  "/api/merchant/orders/:orderId/assign",
+  requireMerchant,
+  async (request, response) => {
+    const order = await mutateDatabase((database) => {
+      const item = database.orders.find(
+        (value) =>
+          value.id === request.params.orderId &&
+          (value.storeId === request.identity.storeId ||
+            (!value.storeId &&
+              value.storeName ===
+                database.stores.find(
+                  (store) => store.id === request.identity.storeId,
+                )?.name)),
+      );
+      const player = database.players.find(
+        (value) =>
+          value.id === request.body.playerId &&
+          value.storeId === request.identity.storeId &&
+          value.verification === "verified" &&
+          value.status !== "offline",
+      );
+      if (!item || item.status !== "paid_escrow" || !player) return null;
+      item.storeId = request.identity.storeId;
+      item.playerId = player.id;
+      item.status = "assigned";
+      item.assignedAt = new Date().toISOString();
+      recordAudit(
+        database,
+        request.identity,
+        "order_assigned_to_player",
+        "order",
+        item.id,
+        { playerId: player.id },
+      );
+      return item;
+    });
+    if (!order)
+      return response
+        .status(409)
+        .json({ error: "订单不可分派或陪玩师当前不可接单" });
     response.json({ order });
   },
 );
@@ -606,7 +764,8 @@ app.post(
     const verification = await mutateDatabase((database) => {
       const existing = database.verificationRequests.find(
         (item) =>
-          item.playerId === request.identity.playerId && item.status === "pending",
+          item.playerId === request.identity.playerId &&
+          item.status === "pending",
       );
       if (existing) return existing;
       const item = {
@@ -650,10 +809,12 @@ app.post(
     const result = await mutateDatabase((database) => {
       const verification = database.verificationRequests.find(
         (item) =>
-          item.id === request.params.verificationId && item.status === "pending",
+          item.id === request.params.verificationId &&
+          item.status === "pending",
       );
       if (!verification) return null;
-      const decision = request.body.decision === "approve" ? "approved" : "rejected";
+      const decision =
+        request.body.decision === "approve" ? "approved" : "rejected";
       verification.status = decision;
       verification.reviewNote = String(request.body.note || "").trim();
       verification.reviewedAt = new Date().toISOString();
@@ -931,7 +1092,9 @@ app.post(
   requireAdmin,
   async (request, response) => {
     const ad = await mutateDatabase((database) => {
-      const item = database.ads.find((value) => value.id === request.params.adId);
+      const item = database.ads.find(
+        (value) => value.id === request.params.adId,
+      );
       if (!item || !["pending", "active"].includes(item.status)) return null;
       item.status = request.body.decision === "approve" ? "active" : "rejected";
       item.reviewNote = String(request.body.note || "").trim();
@@ -946,7 +1109,8 @@ app.post(
       );
       return item;
     });
-    if (!ad) return response.status(404).json({ error: "广告不存在或不可审核" });
+    if (!ad)
+      return response.status(404).json({ error: "广告不存在或不可审核" });
     response.json({ ad });
   },
 );
@@ -974,7 +1138,9 @@ app.post("/api/admin/violations", requireAdmin, async (request, response) => {
     };
     if (!item.targetType || !item.targetId || !item.reason) return null;
     if (item.targetType === "player") {
-      const player = database.players.find((value) => value.id === item.targetId);
+      const player = database.players.find(
+        (value) => value.id === item.targetId,
+      );
       if (player && ["suspend", "ban"].includes(item.penalty))
         player.status = "offline";
     }

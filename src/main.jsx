@@ -39,6 +39,7 @@ import "./realtime.css";
 import "./support-console.css";
 import "./player-console.css";
 import "./order-admin.css";
+import "./governance.css";
 import {
   connectSupportConversation,
   connectMerchantConversation,
@@ -53,6 +54,16 @@ import {
   payOrder,
   listDisputes,
   resolveDispute,
+  listStoreApplications,
+  reviewStoreApplication,
+  listPlayerVerifications,
+  reviewPlayerVerification,
+  listAdminAds,
+  reviewAdvertisement,
+  listLedger,
+  listAuditLogs,
+  createViolation,
+  submitPlayerVerification,
   sendMerchantSupportMessage,
   sendSupportMessage,
   getPlayerDashboard,
@@ -622,7 +633,9 @@ function App() {
       {modal === "owner" && <OwnerDashboard close={() => setModal(null)} />}{" "}
       {modal === "player" && <PlayerDashboard close={() => setModal(null)} />}{" "}
       {modal === "orders" && <BuyerOrderCenter close={() => setModal(null)} />}{" "}
-      {modal === "admin" && <AdminDisputeCenter close={() => setModal(null)} />}{" "}
+      {modal === "admin" && (
+        <AdminGovernanceCenter close={() => setModal(null)} />
+      )}{" "}
       {modal && !["owner", "player", "orders", "admin"].includes(modal) && (
         <Modal
           type={modal}
@@ -2127,6 +2140,461 @@ function BuyerOrderCenter({ close }) {
   );
 }
 
+function AdminGovernanceCenter({ close }) {
+  const [tab, setTab] = useState("纠纷仲裁");
+  const [disputes, setDisputes] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [verifications, setVerifications] = useState([]);
+  const [ads, setAds] = useState([]);
+  const [ledger, setLedger] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [error, setError] = useState("");
+
+  const refresh = () =>
+    Promise.all([
+      listDisputes(),
+      listStoreApplications(),
+      listPlayerVerifications(),
+      listAdminAds(),
+      listLedger(),
+      listAuditLogs(),
+    ])
+      .then(([d, s, v, a, l, audit]) => {
+        setDisputes(d.disputes);
+        setApplications(s.applications);
+        setVerifications(v.verifications);
+        setAds(a.ads);
+        setLedger(l.ledger);
+        setLogs(audit.logs);
+      })
+      .catch((failure) => setError(failure.message));
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const act = (request) =>
+    request.then(refresh).catch((failure) => setError(failure.message));
+
+  const tabs = [
+    ["纠纷仲裁", <ShieldCheck size={16} />],
+    ["入驻审核", <Store size={16} />],
+    ["陪玩师认证", <Award size={16} />],
+    ["广告审核", <Megaphone size={16} />],
+    ["资金对账", <TrendingUp size={16} />],
+    ["审计日志", <Clock3 size={16} />],
+  ];
+
+  return (
+    <div className="overlay admin-overlay" onClick={close}>
+      <div
+        className="admin-center governance"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <aside className="admin-side">
+          <div className="admin-brand">
+            <span className="brand-mark">P</span>
+            <strong>平台治理中心</strong>
+          </div>
+          <nav>
+            {tabs.map(([label, icon]) => (
+              <button
+                className={tab === label ? "active" : ""}
+                onClick={() => setTab(label)}
+                key={label}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </nav>
+          <button className="admin-close" onClick={close}>
+            <X size={15} /> 返回市场
+          </button>
+        </aside>
+        <section className="admin-main">
+          <div className="admin-head">
+            <div>
+              <span className="kicker">PLATFORM GOVERNANCE</span>
+              <h2>{tab}</h2>
+            </div>
+            <span>
+              <ShieldCheck size={14} /> 所有操作写入审计日志
+            </span>
+          </div>
+          <div className="admin-content">
+            {error && <div className="admin-error">{error}</div>}
+            {tab === "纠纷仲裁" && (
+              <>
+                <div className="admin-kpis">
+                  <div>
+                    <span>待处理纠纷</span>
+                    <b>
+                      {disputes.filter((item) => item.status === "open").length}
+                    </b>
+                  </div>
+                  <div>
+                    <span>今日已处理</span>
+                    <b>
+                      {
+                        disputes.filter((item) => item.status === "resolved")
+                          .length
+                      }
+                    </b>
+                  </div>
+                  <div>
+                    <span>处理时效目标</span>
+                    <b>24h</b>
+                  </div>
+                </div>
+                <GovernanceList
+                  headers={["纠纷编号", "订单 / 原因", "状态", "处理操作"]}
+                >
+                  {disputes.map((item) => (
+                    <div className="governance-row dispute" key={item.id}>
+                      <span>
+                        <strong>{item.id}</strong>
+                        <small>
+                          {new Date(item.createdAt).toLocaleString("zh-CN")}
+                        </small>
+                      </span>
+                      <span>
+                        <strong>{item.orderId}</strong>
+                        <small>
+                          {item.reason} · {item.description || "未补充说明"}
+                        </small>
+                      </span>
+                      <em className={item.status}>
+                        {item.status === "open" ? "待处理" : "已结案"}
+                      </em>
+                      <div>
+                        {item.status === "open" ? (
+                          <>
+                            <button
+                              onClick={() =>
+                                act(
+                                  resolveDispute(item.id, {
+                                    resolution: "reject",
+                                  }),
+                                )
+                              }
+                            >
+                              驳回
+                            </button>
+                            <button
+                              onClick={() =>
+                                act(
+                                  resolveDispute(item.id, {
+                                    resolution: "refund_partial",
+                                    amount: 20,
+                                  }),
+                                )
+                              }
+                            >
+                              部分退款
+                            </button>
+                            <button
+                              className="danger"
+                              onClick={() =>
+                                act(
+                                  resolveDispute(item.id, {
+                                    resolution: "refund_full",
+                                  }),
+                                )
+                              }
+                            >
+                              全额退款
+                            </button>
+                          </>
+                        ) : (
+                          <span>
+                            {item.refundAmount
+                              ? `退款 ¥${item.refundAmount}`
+                              : "维持订单"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </GovernanceList>
+              </>
+            )}
+            {tab === "入驻审核" && (
+              <GovernanceList
+                headers={["申请店铺", "联系人", "状态", "审核操作"]}
+              >
+                {applications.map((item) => (
+                  <div className="governance-row" key={item.id}>
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>{item.id}</small>
+                    </span>
+                    <span>
+                      <strong>{item.contact}</strong>
+                      <small>{item.phone}</small>
+                    </span>
+                    <em className={item.status}>
+                      {item.status === "pending"
+                        ? "待审核"
+                        : item.status === "approved"
+                          ? "已通过"
+                          : "已拒绝"}
+                    </em>
+                    <div>
+                      {item.status === "pending" ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              act(reviewStoreApplication(item.id, "reject"))
+                            }
+                          >
+                            拒绝
+                          </button>
+                          <button
+                            className="approve"
+                            onClick={() =>
+                              act(reviewStoreApplication(item.id, "approve"))
+                            }
+                          >
+                            通过
+                          </button>
+                        </>
+                      ) : (
+                        <span>审核完成</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </GovernanceList>
+            )}
+            {tab === "陪玩师认证" && (
+              <GovernanceList
+                headers={["认证申请", "游戏 / 证明", "状态", "审核操作"]}
+              >
+                {verifications.map((item) => (
+                  <div className="governance-row" key={item.id}>
+                    <span>
+                      <strong>{item.realName}</strong>
+                      <small>身份证后四位 {item.idLast4}</small>
+                    </span>
+                    <span>
+                      <strong>{item.game}</strong>
+                      <small>{item.rankProof}</small>
+                    </span>
+                    <em className={item.status}>
+                      {item.status === "pending"
+                        ? "待复核"
+                        : item.status === "approved"
+                          ? "已认证"
+                          : "未通过"}
+                    </em>
+                    <div>
+                      {item.status === "pending" ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              act(reviewPlayerVerification(item.id, "reject"))
+                            }
+                          >
+                            驳回
+                          </button>
+                          <button
+                            className="approve"
+                            onClick={() =>
+                              act(reviewPlayerVerification(item.id, "approve"))
+                            }
+                          >
+                            认证通过
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="danger"
+                          onClick={() =>
+                            act(
+                              createViolation({
+                                targetType: "player",
+                                targetId: item.playerId,
+                                reason: "认证后违规复核",
+                                penalty: "suspend",
+                              }),
+                            )
+                          }
+                        >
+                          暂停接单
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </GovernanceList>
+            )}
+            {tab === "广告审核" && (
+              <GovernanceList
+                headers={["广告编号", "投放位置 / 预算", "状态", "审核操作"]}
+              >
+                {ads.map((item) => (
+                  <div className="governance-row" key={item.id}>
+                    <span>
+                      <strong>{item.id}</strong>
+                      <small>
+                        {item.targetType} · {item.targetId}
+                      </small>
+                    </span>
+                    <span>
+                      <strong>{item.placement}</strong>
+                      <small>
+                        ¥{item.dailyBudget}/天 · {item.impressions || 0} 曝光
+                      </small>
+                    </span>
+                    <em className={item.status}>
+                      {item.status === "pending"
+                        ? "待审核"
+                        : item.status === "active"
+                          ? "投放中"
+                          : "已拒绝"}
+                    </em>
+                    <div>
+                      {["pending", "active"].includes(item.status) ? (
+                        <>
+                          <button
+                            onClick={() =>
+                              act(reviewAdvertisement(item.id, "reject"))
+                            }
+                          >
+                            停止/拒绝
+                          </button>
+                          {item.status === "pending" && (
+                            <button
+                              className="approve"
+                              onClick={() =>
+                                act(reviewAdvertisement(item.id, "approve"))
+                              }
+                            >
+                              批准投放
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <span>不可投放</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </GovernanceList>
+            )}
+            {tab === "资金对账" && (
+              <>
+                <div className="admin-kpis">
+                  <div>
+                    <span>担保收款</span>
+                    <b>
+                      ¥
+                      {ledger
+                        .filter((item) => item.type === "escrow_charge")
+                        .reduce((sum, item) => sum + item.amount, 0)}
+                    </b>
+                  </div>
+                  <div>
+                    <span>累计退款</span>
+                    <b>
+                      ¥
+                      {ledger
+                        .filter((item) => item.type.includes("refund"))
+                        .reduce((sum, item) => sum + item.amount, 0)}
+                    </b>
+                  </div>
+                  <div>
+                    <span>资金流水</span>
+                    <b>{ledger.length}</b>
+                  </div>
+                </div>
+                <GovernanceList headers={["流水编号", "订单", "类型", "金额"]}>
+                  {ledger.map((item) => (
+                    <div className="governance-row ledger" key={item.id}>
+                      <span>
+                        <strong>{item.id.slice(0, 12)}</strong>
+                        <small>
+                          {new Date(item.createdAt).toLocaleString("zh-CN")}
+                        </small>
+                      </span>
+                      <span>
+                        <strong>{item.orderId}</strong>
+                        <small>不可覆盖资金记录</small>
+                      </span>
+                      <em>{item.type}</em>
+                      <div>
+                        <b
+                          className={
+                            item.type.includes("refund")
+                              ? "negative"
+                              : "positive"
+                          }
+                        >
+                          {item.type.includes("refund") ? "-" : "+"}¥
+                          {item.amount}
+                        </b>
+                      </div>
+                    </div>
+                  ))}
+                </GovernanceList>
+              </>
+            )}
+            {tab === "审计日志" && (
+              <GovernanceList
+                headers={["时间 / 操作者", "操作对象", "动作", "详情"]}
+              >
+                {logs.map((item) => (
+                  <div className="governance-row audit" key={item.id}>
+                    <span>
+                      <strong>
+                        {new Date(item.createdAt).toLocaleString("zh-CN")}
+                      </strong>
+                      <small>
+                        {item.actorRole} · {item.actorId}
+                      </small>
+                    </span>
+                    <span>
+                      <strong>{item.targetType}</strong>
+                      <small>{item.targetId}</small>
+                    </span>
+                    <em>{item.action}</em>
+                    <div>
+                      <small>{JSON.stringify(item.details)}</small>
+                    </div>
+                  </div>
+                ))}
+              </GovernanceList>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function GovernanceList({ headers, children }) {
+  const items = React.Children.toArray(children);
+  return (
+    <div className="governance-list">
+      <div className="governance-list-head">
+        {headers.map((header) => (
+          <span key={header}>{header}</span>
+        ))}
+      </div>
+      {items.length ? (
+        items
+      ) : (
+        <div className="admin-empty">
+          <ShieldCheck size={30} />
+          <strong>当前没有待处理记录</strong>
+          <span>新的申请或事件会出现在这里</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDisputeCenter({ close }) {
   const [disputes, setDisputes] = useState([]);
   const [error, setError] = useState("");
@@ -2276,6 +2744,13 @@ function PlayerDashboard({ close }) {
   const [tab, setTab] = useState("接单中心");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [verificationForm, setVerificationForm] = useState({
+    realName: "张泽",
+    idLast4: "1024",
+    game: "王者荣耀",
+    rankProof: "王者营地段位截图已上传",
+  });
+  const [verificationResult, setVerificationResult] = useState("");
 
   const refresh = () =>
     getPlayerDashboard()
@@ -2360,6 +2835,7 @@ function PlayerDashboard({ close }) {
             {[
               ["接单中心", <ShoppingBag size={16} />],
               ["我的名片", <Award size={16} />],
+              ["身份认证", <ShieldCheck size={16} />],
               ["收入明细", <TrendingUp size={16} />],
             ].map(([label, icon]) => (
               <button
@@ -2540,6 +3016,122 @@ function PlayerDashboard({ close }) {
               <div className="player-payout-note">
                 <ShieldCheck size={15} />{" "}
                 每笔收入都关联订单和服务确认，提现前可查看完整流水。
+              </div>
+            </div>
+          )}
+          {tab === "身份认证" && (
+            <div className="player-console-content">
+              <div className="verification-status-card">
+                <div className={`verification-seal ${profile.verification}`}>
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <strong>
+                    {profile.verification === "verified"
+                      ? "实名认证与技能认证已通过"
+                      : "完成认证后才能持续接单"}
+                  </strong>
+                  <p>
+                    身份信息仅用于平台审核，买家只会看到认证标识和技能结果。
+                  </p>
+                </div>
+                <span>
+                  {profile.verification === "verified" ? "已认证" : "待认证"}
+                </span>
+              </div>
+              <div className="verification-form">
+                <div className="verification-form-head">
+                  <div>
+                    <strong>提交认证资料</strong>
+                    <small>主体身份与游戏能力需要分别核验</small>
+                  </div>
+                  <span>
+                    <ShieldCheck size={13} /> 加密传输
+                  </span>
+                </div>
+                <div className="verification-fields">
+                  <label>
+                    <span>真实姓名</span>
+                    <input
+                      value={verificationForm.realName}
+                      onChange={(event) =>
+                        setVerificationForm({
+                          ...verificationForm,
+                          realName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>身份证后四位</span>
+                    <input
+                      maxLength="4"
+                      value={verificationForm.idLast4}
+                      onChange={(event) =>
+                        setVerificationForm({
+                          ...verificationForm,
+                          idLast4: event.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>认证游戏</span>
+                    <select
+                      value={verificationForm.game}
+                      onChange={(event) =>
+                        setVerificationForm({
+                          ...verificationForm,
+                          game: event.target.value,
+                        })
+                      }
+                    >
+                      <option>王者荣耀</option>
+                      <option>英雄联盟</option>
+                      <option>和平精英</option>
+                      <option>无畏契约</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>段位证明</span>
+                    <input
+                      value={verificationForm.rankProof}
+                      onChange={(event) =>
+                        setVerificationForm({
+                          ...verificationForm,
+                          rankProof: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="verification-agreement">
+                  <Check size={13} />{" "}
+                  本人承诺资料真实，并同意平台进行身份和技能复核。
+                </div>
+                {verificationResult && (
+                  <div className="verification-result">
+                    {verificationResult}
+                  </div>
+                )}
+                <button
+                  className="verification-submit"
+                  onClick={() =>
+                    submitPlayerVerification(verificationForm)
+                      .then(({ verification }) =>
+                        setVerificationResult(
+                          verification.status === "pending"
+                            ? "资料已提交，平台将在 1 个工作日内审核。"
+                            : "认证资料已更新。",
+                        ),
+                      )
+                      .catch((failure) =>
+                        setVerificationResult(failure.message),
+                      )
+                  }
+                >
+                  提交认证审核
+                </button>
               </div>
             </div>
           )}
